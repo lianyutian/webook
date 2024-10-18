@@ -4,10 +4,8 @@ import (
 	"errors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"regexp"
-	"time"
 	"webook/internal/domain"
 	"webook/internal/service"
 )
@@ -108,25 +106,17 @@ func (u *UserHandler) login(c *gin.Context) {
 		return
 	}
 
-	//session := sessions.Default(c)
-	//session.Set("userId", user.Id)
-	//session.Options(sessions.Options{
-	//	MaxAge: 10,
-	//})
-	//err = session.Save()
-	//if err != nil {
-	//	c.String(http.StatusInternalServerError, "系统找错误")
-	//	return
-	//}
-	var jwtSecret = []byte("your-secret-key")
-	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": user.Id,
-		"exp":    now.Add(1 * time.Hour).UnixMilli(), // 过期时间为 1 小时
-		"iat":    time.Now().UnixMilli(),             // 签发时间
+	session := sessions.Default(c)
+	session.Set("userId", user.Id)
+	session.Options(sessions.Options{
+		MaxAge: 10,
 	})
-	tokenString, err := token.SignedString(jwtSecret)
-	c.Header("x-jwt-token", tokenString)
+	err = session.Save()
+	if err != nil {
+		c.String(http.StatusInternalServerError, "系统找错误")
+		return
+	}
+
 	c.String(http.StatusOK, "登录成功")
 }
 

@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"fmt"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
+	"time"
 )
 
 type LoginMiddlewareBuilder struct {
@@ -27,53 +27,38 @@ func (l *LoginMiddlewareBuilder) Build() gin.HandlerFunc {
 				return
 			}
 		}
-		//session := sessions.Default(c)
-		//userId := session.Get("userId")
-		tokenString := c.GetHeader("authorization")
+		session := sessions.Default(c)
+		userId := session.Get("userId")
 		// 没有登录
-		if tokenString == "" {
+		if userId == "" {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		var jwtSecret = []byte("your-secret-key")
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// 验证加密方法
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method")
-			}
-			return jwtSecret, nil
-		})
 
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
+		updateTime := session.Get("updateTime")
+		session.Options(sessions.Options{
+			MaxAge: 10,
+		})
+		now := time.Now().UnixMilli()
+		// 刚登陆还未设置刷新时间
+		if updateTime == nil {
+			session.Set("updateTime", now)
+			err := session.Save()
+			if err != nil {
+				c.AbortWithStatus(http.StatusInternalServerError)
+			}
 			return
 		}
-		c.Next()
-		//updateTime := session.Get("updateTime")
-		//session.Options(sessions.Options{
-		//	MaxAge: 10,
-		//})
-		//now := time.Now().UnixMilli()
-		//// 刚登陆还未设置刷新时间
-		//if updateTime == nil {
-		//	session.Set("updateTime", now)
-		//	err := session.Save()
-		//	if err != nil {
-		//		c.AbortWithStatus(http.StatusInternalServerError)
-		//	}
-		//	return
-		//}
-		//
-		//updateTimeVal := updateTime.(int64)
-		//// 刷新时间
-		//if now-updateTimeVal > 5 {
-		//	session.Set("updateTime", now)
-		//	err := session.Save()
-		//	if err != nil {
-		//		c.AbortWithStatus(http.StatusInternalServerError)
-		//		return
-		//	}
-		//}
+
+		updateTimeVal := updateTime.(int64)
+		// 刷新时间
+		if now-updateTimeVal > 5 {
+			session.Set("updateTime", now)
+			err := session.Save()
+			if err != nil {
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 }
