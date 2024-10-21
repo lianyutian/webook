@@ -2,8 +2,6 @@ package main
 
 import (
 	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -54,13 +52,6 @@ func initWebServer() *gin.Engine {
 		AllowCredentials: true,                                                // 允许携带凭证（如 cookies）
 		MaxAge:           12 * time.Hour,                                      // 预检请求的缓存时间
 	}))
-
-	// 使用 cookie 存储 session，密钥是一个字符串（你可以选择复杂的密钥）
-	// store := cookie.NewStore([]byte("secret"))
-	store, _ := redis.NewStore(10, "tcp", "116.198.217.158:6379",
-		"MIIEowIBAAKCAQEAwG90ULRHmAXFXQzZSwleoYts2+bCzUvqhhqtGiv/F5kUsETY", []byte("secret"))
-
-	r.Use(sessions.Sessions("session", store))
 
 	// 登录校验
 	r.Use(

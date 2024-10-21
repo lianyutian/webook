@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"log"
 	"net/http"
+	"strings"
+	"time"
+	"webook/internal/web"
 )
 
 type LoginMiddlewareBuilder struct {
@@ -22,26 +26,35 @@ func (l *LoginMiddlewareBuilder) IgnorePath(path string) *LoginMiddlewareBuilder
 
 func (l *LoginMiddlewareBuilder) Build() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 不需要登录校验的接口路径
 		for _, path := range l.paths {
 			if c.Request.URL.Path == path {
 				return
 			}
 		}
-		//session := sessions.Default(c)
-		//userId := session.Get("userId")
-		tokenString := c.GetHeader("authorization")
+		// 校验 token
+		tokenString := c.GetHeader("Authorization")
+
 		// 没有登录
 		if tokenString == "" {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		var jwtSecret = []byte("your-secret-key")
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+
+		slices := strings.Split(tokenString, " ")
+		if len(slices) != 2 {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		tokenStr := slices[1]
+		userClaims := &web.UserClaims{}
+		token, err := jwt.ParseWithClaims(tokenStr, userClaims, func(token *jwt.Token) (interface{}, error) {
 			// 验证加密方法
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method")
 			}
-			return jwtSecret, nil
+			return web.JwtSecret, nil
 		})
 
 		if err != nil || !token.Valid {
@@ -49,31 +62,19 @@ func (l *LoginMiddlewareBuilder) Build() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		c.Next()
-		//updateTime := session.Get("updateTime")
-		//session.Options(sessions.Options{
-		//	MaxAge: 10,
-		//})
-		//now := time.Now().UnixMilli()
-		//// 刚登陆还未设置刷新时间
-		//if updateTime == nil {
-		//	session.Set("updateTime", now)
-		//	err := session.Save()
-		//	if err != nil {
-		//		c.AbortWithStatus(http.StatusInternalServerError)
-		//	}
-		//	return
-		//}
-		//
-		//updateTimeVal := updateTime.(int64)
-		//// 刷新时间
-		//if now-updateTimeVal > 5 {
-		//	session.Set("updateTime", now)
-		//	err := session.Save()
-		//	if err != nil {
-		//		c.AbortWithStatus(http.StatusInternalServerError)
-		//		return
-		//	}
-		//}
+
+		expiresAt := userClaims.ExpiresAt
+		now := time.Now()
+		if expiresAt.Sub(now) < time.Second*50 {
+			userClaims.ExpiresAt = jwt.NewNumericDate(now)
+			tokenStr, err = token.SignedString(web.JwtSecret)
+			if err != nil {
+				log.Println("jwt signing error:", err)
+			}
+			c.Header("x-jwt-token", tokenStr)
+		}
+
+		c.Set("userId", userClaims.Uid)
+
 	}
 }

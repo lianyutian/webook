@@ -2,9 +2,9 @@ package service
 
 import (
 	"errors"
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"net/http"
 	"webook/internal/domain"
 	"webook/internal/repository"
 )
@@ -12,6 +12,7 @@ import (
 var (
 	ErrUserDuplicateEmail    = repository.ErrUserDuplicateEmail
 	ErrInvalidUserOrPassword = errors.New("invalid user/password")
+	ErrSystemError           = errors.New("system error")
 )
 
 type UserService struct {
@@ -57,10 +58,12 @@ func (svc *UserService) Edit(c *gin.Context, user domain.User) error {
 }
 
 func (svc *UserService) Profile(c *gin.Context) (domain.User, error) {
-	session := sessions.Default(c)
-	userId := session.Get("userId")
+	userId, ok := c.Get("userId")
+	if !ok {
+		c.String(http.StatusOK, "系统错误")
+		return domain.User{}, ErrSystemError
+	}
 
-	//id, _ := strconv.ParseInt(, 10, 64)
 	user, err := svc.repo.FindById(c, userId.(int64))
 
 	if errors.Is(err, repository.ErrUserNotFound) {

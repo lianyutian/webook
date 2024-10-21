@@ -22,6 +22,14 @@ type UserHandler struct {
 	svc *service.UserService
 }
 
+type UserClaims struct {
+	jwt.RegisteredClaims
+	// 自己要放入 token 的数据
+	Uid int64
+}
+
+var JwtSecret = []byte("your-secret-key")
+
 func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{
 		svc: svc,
@@ -108,24 +116,13 @@ func (u *UserHandler) login(c *gin.Context) {
 		return
 	}
 
-	//session := sessions.Default(c)
-	//session.Set("userId", user.Id)
-	//session.Options(sessions.Options{
-	//	MaxAge: 10,
-	//})
-	//err = session.Save()
-	//if err != nil {
-	//	c.String(http.StatusInternalServerError, "系统找错误")
-	//	return
-	//}
-	var jwtSecret = []byte("your-secret-key")
-	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": user.Id,
-		"exp":    now.Add(1 * time.Hour).UnixMilli(), // 过期时间为 1 小时
-		"iat":    time.Now().UnixMilli(),             // 签发时间
+	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+		Uid: user.Id,
 	})
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := claims.SignedString(JwtSecret)
 	c.Header("x-jwt-token", tokenString)
 	c.String(http.StatusOK, "登录成功")
 }
