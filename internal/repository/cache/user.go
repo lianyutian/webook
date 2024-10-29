@@ -19,9 +19,9 @@ type UserCache struct {
 }
 
 // NewUserCache
-// A 用到了 B, B 一定是接口
-// A 用到了 B, B 一定是 A 的字段
-// A 用到了 B, A 绝不初始化 B, 而是由外部注入
+// A 用到了 B, B 一定是接口 ==》保证面向接口
+// A 用到了 B, B 一定是 A 的字段 ==》 规避报变量、包方法
+// A 用到了 B, A 绝不初始化 B, 而是由外部注入 ==》 保持依赖注入和依赖反转
 func NewUserCache(client redis.Cmdable) *UserCache {
 	return &UserCache{client: client}
 }
