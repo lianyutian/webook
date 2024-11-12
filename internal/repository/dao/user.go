@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
@@ -10,8 +11,8 @@ import (
 )
 
 var (
-	ErrUserDuplicateEmail = errors.New("该邮箱已注册")
-	ErrUserNotFound       = gorm.ErrRecordNotFound
+	ErrUserDuplicate = errors.New("该邮箱或手机号已注册")
+	ErrUserNotFound  = gorm.ErrRecordNotFound
 )
 
 type UserDAO struct {
@@ -25,12 +26,14 @@ func NewUserDAO(db *gorm.DB) *UserDAO {
 }
 
 type User struct {
-	Id       int64  `gorm:"primaryKey;autoIncrement"`
-	Email    string `gorm:"type:varchar(100);unique"`
-	Password string `gorm:"type:varchar(100)"`
-	Nickname string `gorm:"type:varchar(100)"`
-	Birthday string `gorm:"type:varchar(10)"`
-	About    string `gorm:"type:varchar(100)"`
+	Id int64 `gorm:"primaryKey;autoIncrement"`
+	// sql.NullString 唯一索引允许为空，但是不允许多个 ""
+	Phone    sql.NullString `gorm:"type:varchar(20);unique"`
+	Email    sql.NullString `gorm:"type:varchar(100);unique"`
+	Password string         `gorm:"type:varchar(100)"`
+	Nickname string         `gorm:"type:varchar(100)"`
+	Birthday string         `gorm:"type:varchar(10)"`
+	About    string         `gorm:"type:varchar(100)"`
 
 	Ctime int64
 	Utime int64
@@ -47,7 +50,7 @@ func (dao *UserDAO) Insert(c context.Context, u User) error {
 	if errors.As(err, &me) {
 		const uniqueIndexErrNo uint16 = 1062
 		if me.Number == uniqueIndexErrNo {
-			return ErrUserDuplicateEmail
+			return ErrUserDuplicate
 		}
 	}
 	return err
@@ -66,5 +69,11 @@ func (dao *UserDAO) Update(ctx context.Context, user User) error {
 func (dao *UserDAO) FindById(c *gin.Context, id int64) (User, error) {
 	var u User
 	err := dao.db.WithContext(c).Where("id = ?", id).First(&u).Error
+	return u, err
+}
+
+func (dao *UserDAO) FindByPhone(c context.Context, phone string) (User, error) {
+	var u User
+	err := dao.db.WithContext(c).Where("phone = ?", phone).First(&u).Error
 	return u, err
 }

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrUserDuplicateEmail    = repository.ErrUserDuplicateEmail
+	ErrUserDuplicate         = repository.ErrUserDuplicate
 	ErrInvalidUserOrPassword = errors.New("invalid user/password")
 	ErrSystemError           = errors.New("system error")
 )
@@ -73,4 +73,25 @@ func (svc *UserService) Profile(c *gin.Context) (domain.User, error) {
 		return domain.User{}, err
 	}
 	return user, nil
+}
+
+func (svc *UserService) FindOrCreate(c *gin.Context, phone string) (domain.User, error) {
+	user, err := svc.repo.FindByPhone(c, phone)
+	if !errors.Is(err, repository.ErrUserNotFound) {
+		// 绝大部分请求都会从这返回
+		return user, err
+	}
+	// 注册用户
+	err = svc.repo.Create(c, domain.User{
+		Phone: phone,
+	})
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return user, ErrUserDuplicate
+		}
+		return user, err
+	}
+
+	// TODO 主从模式这里要在主库读取
+	return svc.repo.FindByPhone(c, user.Phone)
 }

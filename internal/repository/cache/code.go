@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -29,10 +30,14 @@ func NewCodeCache(client redis.Cmdable) *CodeCache {
 	return &CodeCache{client: client}
 }
 
+func (cache *CodeCache) key(biz, phoneNum string) string {
+	return fmt.Sprintf("phone_code:%s:%s", biz, phoneNum)
+}
+
 // Set
 // 执行 lua 脚本
 func (cache *CodeCache) Set(ctx context.Context, biz, phoneNum, code string) error {
-	res, err := cache.client.Eval(ctx, luaSetCode, []string{biz, phoneNum}, code).Int()
+	res, err := cache.client.Eval(ctx, luaSetCode, []string{cache.key(biz, phoneNum)}, code).Int()
 	if err != nil {
 		return err
 	}
@@ -48,7 +53,7 @@ func (cache *CodeCache) Set(ctx context.Context, biz, phoneNum, code string) err
 }
 
 func (cache *CodeCache) Verify(ctx context.Context, biz, phoneNum, code string) (bool, error) {
-	res, err := cache.client.Eval(ctx, luaVerifyCode, []string{biz, phoneNum}, code).Int()
+	res, err := cache.client.Eval(ctx, luaVerifyCode, []string{cache.key(biz, phoneNum)}, code).Int()
 	if err != nil {
 		return false, err
 	}

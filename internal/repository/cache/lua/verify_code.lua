@@ -3,7 +3,7 @@ local cntKey = key..":cnt"
 local expectedCode = ARGV[1]
 
 -- 验证次数
-local cnt = tonumber(redis.call("get"), cntKey)
+local cnt = tonumber(redis.call("get", cntKey))
 -- 验证码
 local code = redis.call("get", key)
 
@@ -20,6 +20,6 @@ if code == expectedCode then
     return 0
 else
     -- 可能用户偶尔输错了
-    redis.call("decr", cntKey, -1)
+    redis.call("decr", cntKey)
     return -2
 end

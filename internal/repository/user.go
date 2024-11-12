@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"github.com/gin-gonic/gin"
 	"log"
 	"time"
@@ -11,8 +12,8 @@ import (
 )
 
 var (
-	ErrUserDuplicateEmail = dao.ErrUserDuplicateEmail
-	ErrUserNotFound       = dao.ErrUserNotFound
+	ErrUserDuplicate = dao.ErrUserDuplicate
+	ErrUserNotFound  = dao.ErrUserNotFound
 )
 
 type UserRepository struct {
@@ -27,27 +28,28 @@ func NewUserRepository(dao *dao.UserDAO, cache *cache.UserCache) *UserRepository
 	}
 }
 
-func (r *UserRepository) Create(c context.Context, u domain.User) error {
-	return r.dao.Insert(c, dao.User{
-		Email:    u.Email,
-		Password: u.Password,
-	})
+func (rep *UserRepository) Create(c context.Context, user domain.User) error {
+	return rep.dao.Insert(c, rep.domainToEntity(user))
 }
 
-func (r *UserRepository) FindByEmail(c context.Context, email string) (domain.User, error) {
-	u, err := r.dao.FindByEmail(c, email)
+func (rep *UserRepository) FindByEmail(c context.Context, email string) (domain.User, error) {
+	ud, err := rep.dao.FindByEmail(c, email)
 	if err != nil {
 		return domain.User{}, err
 	}
-	return domain.User{
-		Id:       u.Id,
-		Email:    u.Email,
-		Password: u.Password,
-	}, nil
+	return rep.entityToDomain(ud), nil
 }
 
-func (r *UserRepository) Update(c context.Context, u domain.User) error {
-	return r.dao.Update(c, dao.User{
+func (rep *UserRepository) FindByPhone(c context.Context, phone string) (domain.User, error) {
+	ud, err := rep.dao.FindByPhone(c, phone)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return rep.entityToDomain(ud), nil
+}
+
+func (rep *UserRepository) Update(c context.Context, u domain.User) error {
+	return rep.dao.Update(c, dao.User{
 		Id:       u.Id,
 		Nickname: u.Nickname,
 		Birthday: u.Birthday,
@@ -56,27 +58,49 @@ func (r *UserRepository) Update(c context.Context, u domain.User) error {
 	})
 }
 
-func (r *UserRepository) FindById(c *gin.Context, id int64) (domain.User, error) {
-	user, err := r.cache.Get(c, id)
+func (rep *UserRepository) FindById(c *gin.Context, id int64) (domain.User, error) {
+	user, err := rep.cache.Get(c, id)
 	// 缓存有数据
 	if err == nil {
 		return user, nil
 	}
 	// 缓存无数据
-	u, err := r.dao.FindById(c, id)
+	ud, err := rep.dao.FindById(c, id)
 	if err != nil {
 		return domain.User{}, err
 	}
-	user = domain.User{
-		Id:       u.Id,
-		Email:    u.Email,
-		Nickname: u.Nickname,
-		Birthday: u.Birthday,
-		AboutMe:  u.About,
-	}
-	err = r.cache.Set(c, user.Id, user)
+	user = rep.entityToDomain(ud)
+	err = rep.cache.Set(c, user.Id, user)
 	if err != nil {
 		log.Println(err)
 	}
 	return user, nil
+}
+
+func (rep *UserRepository) entityToDomain(ud dao.User) domain.User {
+	return domain.User{
+		Id:       ud.Id,
+		Email:    ud.Email.String,
+		Phone:    ud.Phone.String,
+		Nickname: ud.Nickname,
+		Birthday: ud.Birthday,
+		AboutMe:  ud.About,
+	}
+}
+
+func (rep *UserRepository) domainToEntity(user domain.User) dao.User {
+	return dao.User{
+		Id: user.Id,
+		Email: sql.NullString{
+			String: user.Email,
+			Valid:  user.Email != "",
+		},
+		Phone: sql.NullString{
+			String: user.Phone,
+			Valid:  user.Phone != "",
+		},
+		Nickname: user.Nickname,
+		Birthday: user.Birthday,
+		About:    user.AboutMe,
+	}
 }

@@ -3,13 +3,18 @@ package main
 import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"log"
+	"os"
 	"time"
 	"webook/internal/repository"
+	"webook/internal/repository/cache"
 	"webook/internal/repository/dao"
 	"webook/internal/service"
+	"webook/internal/service/sms/memory"
 	"webook/internal/web"
 	"webook/internal/web/middleware"
 )
@@ -17,7 +22,8 @@ import (
 func main() {
 	db := initDB()
 	r := initWebServer()
-	initUser(db, r)
+	client := initRedis()
+	initUser(db, r, client)
 	err := r.Run(":8080")
 	if err != nil {
 		log.Fatal(err)
@@ -26,7 +32,18 @@ func main() {
 
 func initDB() *gorm.DB {
 	dsn := "cloud:li.ming9518@tcp(116.198.217.158:3306)/webook?charset=utf8mb4&parseTime=True&loc=Local"
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // 输出到控制台
+		logger.Config{
+			LogLevel:      logger.Info,            // 日志级别
+			SlowThreshold: 200 * time.Millisecond, // 慢查询阈值
+			// IgnoreRecordNotFoundError: true, // 忽略未找到记录的错误
+			Colorful: true, // 颜色输出
+		},
+	)
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: newLogger,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -58,16 +75,34 @@ func initWebServer() *gin.Engine {
 		middleware.NewLoginMiddlewareBuilder().
 			IgnorePath("/users/login").
 			IgnorePath("/users/signup").
+			IgnorePath("/users/login_sms/code/send").
+			IgnorePath("/users/login_sms").
 			Build(),
 	)
 
 	return r
 }
 
-func initUser(db *gorm.DB, r *gin.Engine) {
+func initRedis() *redis.Client {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "116.198.217.158:6379",
+		Password: "MIIEowIBAAKCAQEAwG90ULRHmAXFXQzZSwleoYts2+bCzUvqhhqtGiv/F5kUsETY", // no password set
+		DB:       0,                                                                  // use default DB
+	})
+	return rdb
+}
+
+func initUser(db *gorm.DB, r *gin.Engine, client *redis.Client) {
 	ud := dao.NewUserDAO(db)
-	ur := repository.NewUserRepository(ud)
+	userCache := cache.NewUserCache(client)
+	ur := repository.NewUserRepository(ud, userCache)
 	us := service.NewUserService(ur)
-	uh := web.NewUserHandler(us)
+
+	codeCache := cache.NewCodeCache(client)
+	codeRepository := repository.NewCodeRepository(codeCache)
+	memService := memory.NewService()
+	codeService := service.NewCodeService(codeRepository, memService, "")
+
+	uh := web.NewUserHandler(us, codeService)
 	uh.RegisterRoutes(r)
 }
