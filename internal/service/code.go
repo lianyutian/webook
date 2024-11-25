@@ -14,20 +14,18 @@ var (
 )
 
 type CodeService struct {
-	rep        *repository.CodeRepository
-	smsSvc     sms.Service
-	templateId string
+	rep    *repository.CodeRepository
+	smsSvc sms.Service
 }
 
-func NewCodeService(rep *repository.CodeRepository, smsSvc sms.Service, templateId string) *CodeService {
+func NewCodeService(rep *repository.CodeRepository, smsSvc sms.Service) *CodeService {
 	return &CodeService{
-		rep:        rep,
-		smsSvc:     smsSvc,
-		templateId: templateId,
+		rep:    rep,
+		smsSvc: smsSvc,
 	}
 }
 
-func (svc *CodeService) Send(ctx context.Context, biz string, phoneNum string) error {
+func (svc *CodeService) Send(ctx context.Context, templateId, biz string, phoneNum string) error {
 	// 生成 code 码
 	code := svc.generateCode()
 	// code 存储 redis
@@ -36,7 +34,7 @@ func (svc *CodeService) Send(ctx context.Context, biz string, phoneNum string) e
 		return err
 	}
 	// 发送短信
-	err = svc.smsSvc.Send(ctx, svc.templateId, []string{code}, phoneNum)
+	err = svc.smsSvc.Send(ctx, templateId, []string{code}, phoneNum)
 	if err != nil {
 		// 如果前面写入 redis 成功, 这里失败。用户实际上是没有收到短信的
 		// 能不能删除 redis 里的验证码？

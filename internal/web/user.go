@@ -12,12 +12,6 @@ import (
 	"webook/internal/service"
 )
 
-const emailRegexPattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-const passwordRegexPattern = "^[a-zA-Z0-9!@#\\$%\\^&\\*\\(\\)_\\+\\-=\\[\\]\\{\\};':\",.<>?/\\\\|]{6,10}$"
-const nickNameRegexPattern = `^[a-zA-Z0-9_\p{Han}]{3,16}$`
-const birthDayRegexPattern = `^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$`
-const aboutRegexPattern = `^[a-zA-Z0-9_\p{Han}]{3,16}$`
-const phoneRegexPattern = `^1[3-9]\d{9}$`
 const biz = "login"
 
 type UserHandler struct {
@@ -52,18 +46,21 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 
 // 校验电子邮件格式
 func isValidEmail(email string) bool {
+	const emailRegexPattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
 	re := regexp.MustCompile(emailRegexPattern)
 	return re.MatchString(email)
 }
 
 // 校验电子邮件格式
 func isValidPassword(password string) bool {
+	const passwordRegexPattern = "^[a-zA-Z0-9!@#\\$%\\^&\\*\\(\\)_\\+\\-=\\[\\]\\{\\};':\",.<>?/\\\\|]{6,10}$"
 	re := regexp.MustCompile(passwordRegexPattern)
 	return re.MatchString(password)
 }
 
 // 校验手机号码
 func isValidPhone(phone string) bool {
+	const phoneRegexPattern = `^1[3-9]\d{9}$`
 	re := regexp.MustCompile(phoneRegexPattern)
 	return re.MatchString(phone)
 }
@@ -170,7 +167,7 @@ func (u *UserHandler) sendSmsLoginCode(c *gin.Context) {
 		return
 	}
 
-	err := u.codeSvc.Send(c, biz, req.Phone)
+	err := u.codeSvc.Send(c, "1", biz, req.Phone)
 	switch {
 	case err == nil:
 		c.JSON(http.StatusOK, Result{
@@ -277,6 +274,12 @@ func (u *UserHandler) edit(c *gin.Context) {
 		c.String(http.StatusBadRequest, "bad request")
 		return
 	}
+
+	const (
+		nickNameRegexPattern = `^[a-zA-Z0-9_\p{Han}]{3,16}$`
+		birthDayRegexPattern = `^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$`
+		aboutRegexPattern    = `^[a-zA-Z0-9_\p{Han}]{3,16}$`
+	)
 
 	if !regexp.MustCompile(nickNameRegexPattern).MatchString(req.NickName) {
 		c.String(http.StatusOK, "nickname is invalid")

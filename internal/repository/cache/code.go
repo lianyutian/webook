@@ -22,21 +22,21 @@ var luaSetCode string
 //go:embed lua/verify_code.lua
 var luaVerifyCode string
 
-type CodeCache struct {
+type CodeRedisCache struct {
 	client redis.Cmdable
 }
 
-func NewCodeCache(client redis.Cmdable) *CodeCache {
-	return &CodeCache{client: client}
+func NewCodeCache(client redis.Cmdable) *CodeRedisCache {
+	return &CodeRedisCache{client: client}
 }
 
-func (cache *CodeCache) key(biz, phoneNum string) string {
+func (cache *CodeRedisCache) key(biz, phoneNum string) string {
 	return fmt.Sprintf("phone_code:%s:%s", biz, phoneNum)
 }
 
 // Set
 // 执行 lua 脚本
-func (cache *CodeCache) Set(ctx context.Context, biz, phoneNum, code string) error {
+func (cache *CodeRedisCache) Set(ctx context.Context, biz, phoneNum, code string) error {
 	res, err := cache.client.Eval(ctx, luaSetCode, []string{cache.key(biz, phoneNum)}, code).Int()
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (cache *CodeCache) Set(ctx context.Context, biz, phoneNum, code string) err
 	}
 }
 
-func (cache *CodeCache) Verify(ctx context.Context, biz, phoneNum, code string) (bool, error) {
+func (cache *CodeRedisCache) Verify(ctx context.Context, biz, phoneNum, code string) (bool, error) {
 	res, err := cache.client.Eval(ctx, luaVerifyCode, []string{cache.key(biz, phoneNum)}, code).Int()
 	if err != nil {
 		return false, err
